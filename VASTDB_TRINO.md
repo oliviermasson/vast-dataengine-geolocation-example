@@ -128,27 +128,45 @@ Pick the Trino/connector image version matching your VAST cluster version:
 
 ### Configuration — `vast.properties`
 
-Create a `vast.properties` file (replace the placeholders with your real endpoint and credentials — never commit this file, same rule as `config.yaml`/`omgeoloc-secrets.yaml`):
+Create a `vast.properties` file (replace the placeholders with your real endpoints and credentials — never commit this file, same rule as `config.yaml`/`omgeoloc-secrets.yaml`):
 
 ```properties
-## VAST-specific — fill these in ##
-endpoint=http://X.X.X.X
-data_endpoints=http://X.X.X.X
+connector.name=vast
+endpoint=http://X.X.X.1
+data_endpoints=http://X.X.X.1,http://X.X.X.2,http://X.X.X.3,http://X.X.X.4,http://X.X.X.5,http://X.X.X.6
 access_key_id=xxxxxxxxx
 secret_access_key=xxxxxxxxx
-
-## Leave as-is ##
-connector.name=vast
 region=us-east-1
-num_of_splits=32
-num_of_subsplits=8
+
+num_of_splits=12
+num_of_subsplits=4
+
 vast.http-client.request-timeout=60m
 vast.http-client.idle-timeout=60m
+
 enable_custom_schema_separator=true
 custom_schema_separator=|
+expression_projection_pushdown=true
+complex_predicate_pushdown=true
 ```
 
-`endpoint`/`data_endpoints` should point at the same VastDB endpoint used for `VASTDB_ENDPOINT` (a load-balanced DNS name or VIP, `http://` prefix, no trailing slash).
+#### `endpoint` vs. `data_endpoints`
+
+- **`endpoint`**: a single URL used for control-plane calls (listing schemas/tables, metadata).
+- **`data_endpoints`**: a **comma-separated list of VIPs** used for the actual data-path reads once a query is split into tasks.
+
+**Why list several `data_endpoints` instead of one:** a VAST cluster exposes its data path through a pool of Virtual IPs (VIPs), spread across the CNodes' NICs. If you only configure one VIP, every Trino worker hits that single IP — creating an avoidable bottleneck on one node, and a hard failure (until DNS/VIP failover kicks in) if that specific CNode goes down or is rebooted during an upgrade. Listing **all (or several) CNode VIPs** in `data_endpoints` lets the connector spread requests across them, so:
+  - throughput scales with the number of CNodes actually participating instead of being capped by one node's NIC,
+  - traffic isn't pinned to a node that might disappear (VIPs themselves can also move between CNodes on failover, but only helps if clients aren't hardcoded to a single one).
+
+  The example above lists 6 VIPs, matching a 6-CNode cluster — adjust the list to the VIPs of your own cluster (`data_endpoints=http://<vip-1>,http://<vip-2>,...`).
+
+#### Sizing `num_of_splits` / `num_of_subsplits`
+
+- **`num_of_splits`**: how many parallel tasks Trino itself splits a scan into across the row-ID space of the table. VAST's own tuning guidance targets roughly **4 million rows per split**, and recommends a split count divisible by your number of Trino workers.
+- **`num_of_subsplits`**: how many further sub-tasks each split is divided into **once it reaches a CNode**, to use that node's multiple cores. Recommended to be divisible by the number of cores per CNode.
+
+The values above (`num_of_splits=12`, `num_of_subsplits=4`) are what a small lab cluster (6 CNodes) uses in practice — they're deliberately modest since a small/test table doesn't need the generic default of 64/10 splits. Tune both up as your cluster and table size grow; there's no universal correct value, size them for your own cluster and data volume.
 
 ### Running Trino
 
