@@ -1,0 +1,11 @@
+# pip requirements come here
+boto3
+exifread
+opentelemetry-api
+opentelemetry-api==1.38.0
+opentelemetry-sdk==1.38.0
+opentelemetry-processor-baggage==0.59b0
+opentelemetry-semantic-conventions==0.59b0
+reverse-geocode
+vastdb
+pyarrow

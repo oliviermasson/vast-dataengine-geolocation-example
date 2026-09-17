@@ -1,0 +1,24 @@
+# --- Fichiers contenant des identifiants / infrastructure réels ---
+# Ne JAMAIS committer ces fichiers : ils contiennent (ou peuvent contenir)
+# des access/secret keys AWS & VastDB ainsi que des endpoints internes.
+# Utilisez les fichiers *.example correspondants comme modèles.
+config.yaml
+config_localrun.yaml
+omgeoloc-secrets.yaml
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# --- VAST DataEngine CLI build artifacts ---
+build.log
+*.tar
+*.tar.gz
+
+# --- Divers ---
+.DS_Store
+*.swp

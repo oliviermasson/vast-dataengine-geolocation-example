@@ -1,0 +1,10 @@
+envs:
+  S3_ENDPOINT_URL: "https://xxxxxxxxx.example.com"
+  AWS_ACCESS_KEY_ID: "xxxxxxxxx"
+  AWS_SECRET_ACCESS_KEY: "xxxxxxxxx"
+  VASTDB_ENDPOINT: "http://X.X.X.X"
+  VASTDB_ACCESS_KEY: "xxxxxxxxx"
+  VASTDB_SECRET_KEY: "xxxxxxxxx"
+  VASTDB_BUCKET: "omgeolocdb"
+  VASTDB_SCHEMA: "geoloc"
+  VASTDB_TABLE: "geoloc"
