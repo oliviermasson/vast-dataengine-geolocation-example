@@ -182,7 +182,13 @@ vastde functions invoke --generate-event --url http://localhost:8080/
 
 ## Manual Docker push (without `--push`)
 
-If your installed `vastde` version doesn't yet offer the `--push` option on `functions build`, do it manually with Docker:
+**First, double-check `--push` is really unavailable** — run `vastde version` and `vastde functions build --help` on the machine you build from. `--push` has been available since v5.5.0 of the CLI, so unless you're on an older release, you likely already have it and can skip this whole section.
+
+Note that `vastde functions build` also touches Docker on its own even without `--push`: it uses [Zarf](https://zarf.dev/) internally to stage the image through a short-lived local registry (you may notice a `127.0.0.1:<port>` entry with a `zarf-push` user in `~/.docker/config.json` — that's this local staging step, not the real remote registry, and it's managed automatically). Don't reuse those credentials for anything else.
+
+When `--push` **is** available, `vastde` authenticates to the real remote registry on your behalf using the registry credentials already declared on the VAST DataEngine side (via `vastde container-registries link`, normally done once by an admin) and your own `vastde config` session — you never need to know or type a registry username/password yourself.
+
+Only if your CLI genuinely lacks `--push`, push manually with Docker:
 
 ```bash
 # 1. Local build only (no --push)
@@ -191,16 +197,21 @@ vastde functions build . --handlers main.py --image-tag v1.20
 # 2. Find the name/tag of the locally built image
 docker images | grep omgeoloc
 
-# 3. Log in to the target registry
+# 3. Get the real remote registry's credentials — do NOT reuse the local
+#    127.0.0.1 zarf-push credentials mentioned above, they won't work here.
+vastde container-registries get <your-registry-name-or-vrn>
+#    (ask your VAST admin if this doesn't return a username/password/token)
+
+# 4. Log in to that remote registry with the credentials from step 3
 docker login <registry>.example.com
 
-# 4. Re-tag the image with the remote registry path
+# 5. Re-tag the image with the remote registry path
 docker tag omgeoloc:v1.20 <registry>.example.com/<image-repo>/omgeoloc:v1.20
 
-# 5. Push the image
+# 6. Push the image
 docker push <registry>.example.com/<image-repo>/omgeoloc:v1.20
 
-# 6. Then create/update the function as usual
+# 7. Then create/update the function as usual
 vastde functions update omgeoloc \
   --container-registry <your-registry-name-or-vrn> \
   --artifact-source <image-repo>/omgeoloc \
