@@ -21,6 +21,8 @@ A [VAST DataEngine](https://kb.vastdata.com/documentation/docs/vast-dataengine-5
 - [VastDB table schema](#vastdb-table-schema)
 - [Official documentation](#official-documentation)
 
+> Setting up the VastDB bucket/schema/table from scratch, or querying it interactively with Trino? See the dedicated [`VASTDB_TRINO.md`](VASTDB_TRINO.md) guide.
+
 ## How it works
 
 ```
@@ -280,6 +282,8 @@ The function inserts one row per photo into the VastDB table (`VASTDB_BUCKET` / 
 | `region` | string | State/region |
 | `country` | string | Country |
 | `continent` | string | Continent |
+
+For step-by-step instructions to create this bucket/schema/table (or your own equivalent, as long as the columns above stay identical) and to query it interactively with Trino, see [`VASTDB_TRINO.md`](VASTDB_TRINO.md).
 
 ## Official documentation
 
