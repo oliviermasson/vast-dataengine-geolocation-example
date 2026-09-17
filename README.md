@@ -12,8 +12,7 @@ A [VAST DataEngine](https://kb.vastdata.com/documentation/docs/vast-dataengine-5
 - [Prerequisites](#prerequisites)
 - [Get the project](#get-the-project)
 - [Configuration](#configuration)
-- [Create the function on VAST DataEngine](#create-the-function-on-vast-dataengine)
-- [Trigger the function (S3 trigger)](#trigger-the-function-s3-trigger)
+- [Deploy the pipeline: function, trigger & manifest](#deploy-the-pipeline-function-trigger--manifest)
 - [Test locally](#test-locally)
 - [Ship a new release of the code](#ship-a-new-release-of-the-code)
 - [Manual Docker push (without `--push`)](#manual-docker-push-without---push)
@@ -55,14 +54,15 @@ VAST DataEngine function (main.py)
 | `config.yaml.example` | Template for the deployed function's non-secret environment variables |
 | `config_localrun.yaml.example` | Template for the file used by `vastde functions localrun -c ...` |
 | `omgeoloc-secrets.yaml.example` | Template for the secrets bundle (AWS/VastDB credentials) mounted under `/secrets` |
+| `manifest.yaml.example` | Template for the pipeline manifest binding the trigger to the function (see [Deploy the pipeline](#deploy-the-pipeline-function-trigger--manifest)) |
 
-The three `*.example` files must be copied **without the `.example` suffix** and filled in with your own values (see [Configuration](#configuration)). The filled-in copies must never be committed — they're listed in `.gitignore`.
+The four `*.example` files must be copied **without the `.example` suffix** and filled in with your own values (see [Configuration](#configuration)). The filled-in copies must never be committed — they're listed in `.gitignore`.
 
 ## ⚠️ Security / secrets
 
 The Python code (`main.py`, `geolocation.py`) contains **no hardcoded secrets**: AWS/VastDB credentials are read from files mounted under `/secrets`, or, failing that, from environment variables (the `read_secret` function), and endpoints also come from environment variables. That's why these two files can safely stay public as-is.
 
-However, the original `config.yaml`, `config_localrun.yaml` and `omgeoloc-secrets.yaml` files contained **real values** (AWS and VastDB access/secret keys, an internal IP, an internal hostname). They have been removed from the public repository and replaced with `*.example` versions using dummy values (`X.X.X.X`, `xxxxxxxxx`). If you find these files locally, never commit them (they're listed in `.gitignore`).
+However, the original `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml` and `manifest.yaml` files contained **real values** (AWS and VastDB access/secret keys, an internal IP, an internal hostname, an internal Kubernetes cluster name). They have been removed from the public repository and replaced with `*.example` versions using dummy values (`X.X.X.X`, `xxxxxxxxx`). If you find these files locally, never commit them (they're listed in `.gitignore`).
 
 ## Prerequisites
 
@@ -88,15 +88,19 @@ Copy the templates and fill them in with your own values:
 cp config.yaml.example config.yaml
 cp config_localrun.yaml.example config_localrun.yaml
 cp omgeoloc-secrets.yaml.example omgeoloc-secrets.yaml
+cp manifest.yaml.example manifest.yaml
 ```
 
 - `config.yaml`: environment variables for the deployed function (S3 endpoint, VastDB endpoint, VastDB bucket/schema/table name). Credentials themselves are provided through the secret described in `omgeoloc-secrets.yaml` and mounted under `/secrets` by VAST DataEngine.
 - `omgeoloc-secrets.yaml`: defines the secrets bundle (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VASTDB_ACCESS_KEY`, `VASTDB_SECRET_KEY`) to create on the VAST DataEngine side and attach to the function/pipeline.
 - `config_localrun.yaml`: an "all-in-one" file (endpoints + credentials in plain text) used only for local testing with `vastde functions localrun -c config_localrun.yaml`, since there's no `/secrets` mount locally.
+- `manifest.yaml`: the pipeline manifest — wires the trigger to the function, and carries the same environment variables plus a reference to the secret bundle. Used once you deploy for real (see [Deploy the pipeline](#deploy-the-pipeline-function-trigger--manifest)).
 
-## Create the function on VAST DataEngine
+## Deploy the pipeline: function, trigger & manifest
 
-These commands assume `vastde` is already installed (see [Prerequisites](#prerequisites)) and pointed at your cluster:
+In VAST DataEngine, a running deployment is a **pipeline** that wires a **trigger** to one or more **function** revisions, plus the environment variables/secrets/resource limits it runs with. A pipeline is described by a `manifest.yaml` file. This project ships [`manifest.yaml.example`](manifest.yaml.example) as a working template — copy it to `manifest.yaml`, fill in your own values, and never commit the filled-in copy (same rule as the `config*.yaml`/`omgeoloc-secrets.yaml` files, see [Security / secrets](#️-security--secrets)).
+
+These steps assume `vastde` is already installed (see [Prerequisites](#prerequisites)) and pointed at your cluster:
 
 ```bash
 # Once per machine: configure the CLI
@@ -106,13 +110,15 @@ vastde config set --username <your_user> --password <your_password> --tenant <yo
 vastde config view
 ```
 
+### 1. Build and register the function
+
 From the project root:
 
 ```bash
-# 1. Build the function's image + push it to the configured registry
+# Build the function's image + push it to the configured registry
 vastde functions build . --handlers main.py --image-tag v1.19 --push
 
-# 2. Create the function from the pushed image
+# Register it as a VAST DataEngine function
 vastde functions create \
   --name omgeoloc \
   --container-registry <your-registry-name-or-vrn> \
@@ -121,23 +127,82 @@ vastde functions create \
   --publish
 ```
 
-- `<your-registry-name-or-vrn>`: a registry already declared on the VAST DataEngine side (`vastde container-registries list` to list, `vastde container-registries link` to add one).
-- `--publish` makes this revision active immediately.
-- The environment variables (`config.yaml`) and the secret (`omgeoloc-secrets.yaml`) must be attached to the function/pipeline — check `vastde functions --help` / `vastde pipelines --help` on your CLI version for the exact attachment syntax, as it can vary by version.
+`<your-registry-name-or-vrn>` is a registry already declared on the VAST DataEngine side (`vastde container-registries list` to list, `vastde container-registries link` to add one). This produces a function VRN, e.g. `vast:dataengine:functions:omgeoloc`, at revision `1`.
 
-## Trigger the function (S3 trigger)
+### 2. Create the trigger
 
-To have the function fire automatically every time a photo is dropped into the bucket:
+To have the pipeline fire automatically every time a photo is dropped into the S3 bucket:
 
 ```bash
 vastde triggers create element \
-  --name omgeoloc-on-upload \
+  --name omgeoloc-bucket-trigger \
   --source-bucket <photos-bucket-name> \
   --event ObjectCreated:* \
   --name-suffix .jpg
 ```
 
-Then wire this trigger to the `omgeoloc` function through a pipeline (`vastde pipelines create --config ... --deploy`, then `vastde pipelines deploy <name>`) — see the official docs for the exact pipeline config file format on your CLI version.
+This produces a trigger VRN, e.g. `vast:dataengine:triggers:omgeoloc-bucket-trigger`.
+
+### 3. Fill in the pipeline manifest
+
+Copy the template and edit it:
+
+```bash
+cp manifest.yaml.example manifest.yaml
+```
+
+[`manifest.yaml.example`](manifest.yaml.example) is a real, working manifest with placeholders for the infra-specific bits. Its blocks map directly to what you just created:
+
+| Block | Role |
+|---|---|
+| `kubernetes_cluster_vrn` | The compute cluster to deploy on — list yours with `vastde compute-clusters list` |
+| `manifest.triggers[]` | Aliases (`name`) pointing at the trigger VRN from step 2 |
+| `manifest.function_deployments[]` | Aliases pointing at the function VRN + `revision` from step 1, plus autoscaling (`min/max_concurrency`, `autoscaling_rps_factor`) and resource limits (`min/max_cpu`, `min/max_memory`, `timeout`) |
+| `manifest.links[]` | Wires a trigger alias (`source`) to a function alias (`destination`) through a broker `topic`, with delivery settings (`retries`, `events_order`) |
+| `manifest.config.secrets[]` | Names of secret bundles to attach — must match the top-level key in a `--secret-file` (see step 4), e.g. `omgeoloc-vastdb-credentials` from `omgeoloc-secrets.yaml` |
+| `manifest.config.environment_variables[]` | Same variables as `config.yaml`, but inlined in the manifest instead |
+
+Update `revision` in `function_deployments[]` whenever you publish a new function revision (see [Ship a new release of the code](#ship-a-new-release-of-the-code)).
+
+### 4. Deploy the pipeline (CLI)
+
+```bash
+vastde pipelines create \
+  --name omgeoloc \
+  --config @manifest.yaml \
+  --secret-file omgeoloc-secrets.yaml \
+  --deploy
+```
+
+`--secret-file` uploads `omgeoloc-secrets.yaml` and registers it under the secret name used as its top-level key (`omgeoloc-vastdb-credentials`), matching the reference in `manifest.config.secrets`. `--deploy` activates the pipeline immediately after creation.
+
+Check it came up:
+
+```bash
+vastde pipelines get omgeoloc
+vastde pipelines list
+```
+
+To apply a manifest change later (new function revision, new env var, resized resources), use the same manifest file with:
+
+```bash
+vastde pipelines update omgeoloc --config @manifest.yaml --secret-file omgeoloc-secrets.yaml
+vastde pipelines deploy omgeoloc
+```
+
+### 5. Same thing via the VMS web UI
+
+Every block of `manifest.yaml` has a direct equivalent in the DataEngine section of the VMS web interface — useful if you'd rather click through it than hand-edit YAML:
+
+1. **Functions**: `DataEngine → Functions → + New Function`, pointing at the image you already built and pushed in step 1 (the build/push itself still needs Docker — the UI only registers an existing image, it doesn't build one).
+2. **Triggers**: `DataEngine → Triggers → + New Trigger`, type *Element*, same source bucket / event / suffix as step 2.
+3. **Pipelines**: `DataEngine → Pipelines → + New Pipeline`. Give it a name (`omgeoloc`), add the trigger and the function+revision from the steps above, draw the link between them and pick the broker topic, then fill in:
+   - **Environment variables**: the same key/value pairs as `manifest.config.environment_variables` (or `config.yaml`).
+   - **Secrets**: upload/select a secret named `omgeoloc-vastdb-credentials` with the same keys as `omgeoloc-secrets.yaml`.
+   - **Resources**: concurrency, CPU, memory and timeout, matching `manifest.function_deployments[].resources`.
+4. Click **Deploy** / **Activate**.
+
+Exact menu labels can vary slightly between VMS versions, but the underlying object model (trigger, function revision, link/topic, resources, secrets, env vars) is identical to `manifest.yaml`.
 
 ## Test locally
 

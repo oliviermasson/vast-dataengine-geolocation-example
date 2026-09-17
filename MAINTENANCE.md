@@ -4,7 +4,7 @@ Short checklist for anyone (human or Claude Code agent) working on this reposito
 
 ## Before every commit / push
 
-- [ ] `git status`: make sure none of these files is tracked/staged: `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml` (they're in `.gitignore`, but an accidental `git add -f` is still possible).
+- [ ] `git status`: make sure none of these files is tracked/staged: `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml`, `manifest.yaml` (they're in `.gitignore`, but an accidental `git add -f` is still possible).
 - [ ] Never paste an internal IP, an internal hostname, or an access/secret key directly into `main.py`, `geolocation.py`, `README.md`, or any other tracked file. If an example is needed, use `X.X.X.X` for an IP and `xxxxxxxxx` for a key (see the `*.example` files).
 - [ ] If one of the `*.example` files needs to change shape (e.g. a new env var), mirror the change in the corresponding real file AND in `README.md`.
 
@@ -34,5 +34,6 @@ then update only the local, untracked copies (`config_localrun.yaml`, `omgeoloc-
 | `config.yaml` | S3 endpoint, VastDB endpoint (internal infra) |
 | `config_localrun.yaml` | Endpoints + AWS & VastDB access/secret keys in plain text |
 | `omgeoloc-secrets.yaml` | AWS & VastDB access/secret keys in plain text |
+| `manifest.yaml` | Internal Kubernetes cluster name, internal endpoint/IP (in its inlined environment variables) |
 
-Each of these three files has a tracked `*.example` counterpart that serves as documentation/template.
+Each of these four files has a tracked `*.example` counterpart that serves as documentation/template.

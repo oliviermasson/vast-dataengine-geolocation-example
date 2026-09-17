@@ -1,0 +1,51 @@
+name: omgeoloc
+description: locate the place where a photo was taken and save the information in a VastDB database
+tags:
+namespace: default
+kubernetes_cluster_vrn: vast:dataengine:kubernetes-clusters:<your-k8s-cluster>
+manifest:
+  triggers:
+    - name: omgeoloc-bucket-trigger
+      vrn: vast:dataengine:triggers:omgeoloc-bucket-trigger
+
+
+  function_deployments:
+    - name: omgeoloc-2
+      function_vrn: vast:dataengine:functions:omgeoloc
+      revision: 1
+      config:
+        log_level: INFO
+      resources:
+        min_concurrency: 1
+        max_concurrency: 10
+        autoscaling_rps_factor: 2
+        min_cpu: 100m
+        max_cpu: 500m
+        min_memory: 128Mi
+        max_memory: 256Mi
+        timeout: 60
+
+
+  links:
+    - source:
+        - omgeoloc-bucket-trigger
+      destination:
+        - omgeoloc-2
+      topic: vast:dataengine:topics:engine-broker/main
+      config:
+        retries: 3
+        events_order: unordered
+  config:
+    secrets:
+      - omgeoloc-vastdb-credentials
+    environment_variables:
+      - name: S3_ENDPOINT_URL
+        value: https://xxxxxxxxx.example.com
+      - name: VASTDB_ENDPOINT
+        value: http://X.X.X.X
+      - name: VASTDB_BUCKET
+        value: omgeolocdb
+      - name: VASTDB_SCHEMA
+        value: geoloc
+      - name: VASTDB_TABLE
+        value: geoloc

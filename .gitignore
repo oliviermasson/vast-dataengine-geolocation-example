@@ -5,6 +5,7 @@
 config.yaml
 config_localrun.yaml
 omgeoloc-secrets.yaml
+manifest.yaml
 
 # --- Python ---
 __pycache__/

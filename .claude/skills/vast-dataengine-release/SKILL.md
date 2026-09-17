@@ -9,15 +9,15 @@ This skill describes the procedure to follow in this repository (`vast-dataengin
 1. build and publish a new version of the function,
 2. verify secret hygiene before committing/pushing.
 
-Refer to `README.md` (sections "Create the function on VAST DataEngine", "Ship a new release of the code", "Manual Docker push") and to `MAINTENANCE.md` for the full details; this file is only an operational cheat sheet for an agent.
+Refer to `README.md` (sections "Deploy the pipeline: function, trigger & manifest", "Ship a new release of the code", "Manual Docker push") and to `MAINTENANCE.md` for the full details; this file is only an operational cheat sheet for an agent.
 
 ## Before anything else: check for secrets
 
-Never commit `config.yaml`, `config_localrun.yaml`, or `omgeoloc-secrets.yaml` (the real files, with real values). They're in `.gitignore`. Before a commit:
+Never commit `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml`, or `manifest.yaml` (the real files, with real values). They're in `.gitignore`. Before a commit:
 
 ```bash
 git status
-git diff --cached -- config.yaml config_localrun.yaml omgeoloc-secrets.yaml
+git diff --cached -- config.yaml config_localrun.yaml omgeoloc-secrets.yaml manifest.yaml
 ```
 
 If any of these files shows up as staged, unstage it before continuing. Never introduce an internal IP / internal hostname / plaintext access-key / secret-key into a tracked file (`main.py`, `geolocation.py`, `README.md`, etc.) — use `X.X.X.X` / `xxxxxxxxx` like in the `*.example` files.
@@ -39,7 +39,12 @@ If any of these files shows up as staged, unstage it before continuing. Never in
      --image-tag vX.Y \
      --publish
    ```
-5. Commit only the code (never the real config files):
+5. If a pipeline is already deployed, point it at the new revision: bump `revision` under `function_deployments[]` in `manifest.yaml` to match the new function revision number, then:
+   ```bash
+   vastde pipelines update omgeoloc --config @manifest.yaml --secret-file omgeoloc-secrets.yaml
+   vastde pipelines deploy omgeoloc
+   ```
+6. Commit only the code (never the real config files, including `manifest.yaml`):
    ```bash
    git add main.py geolocation.py
    git commit -m "Bump function to vX.Y"
