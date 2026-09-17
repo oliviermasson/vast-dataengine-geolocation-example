@@ -211,11 +211,23 @@ Exact menu labels can vary slightly between VMS versions, but the underlying obj
 vastde functions build . --handlers main.py --image-tag dev
 
 # Run the container locally with your test variables/secrets
-vastde functions localrun . --config config_localrun.yaml --image-tag dev --port 8080
+vastde functions localrun . --config config_localrun.yaml --image-tag dev --port 9373
 
 # In another terminal: send a test event
-vastde functions invoke --generate-event --url http://localhost:8080/
+vastde functions invoke --generate-event --url http://localhost:9373/
 ```
+
+The `--port` value just needs to be a **free port on your machine** — not already bound by another container or by any other process on the host. Beyond that, any port works, so pick whichever you like; `9373` is used above instead of the more common `8080` because `8080` is frequently already taken by something else on dev machines (another local service, another `localrun`, a proxy, etc.). Whichever port you choose, check it's actually free first:
+
+```bash
+# Nothing should be listening on the port yet
+lsof -i :9373        # or: ss -ltnp | grep :9373
+
+# And no container should already be bound to it
+docker ps --filter "publish=9373"
+```
+
+If either command shows something, pick a different port.
 
 ## Ship a new release of the code
 
