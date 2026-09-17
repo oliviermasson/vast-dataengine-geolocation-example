@@ -14,6 +14,7 @@ A [VAST DataEngine](https://kb.vastdata.com/documentation/docs/vast-dataengine-5
 - [Configuration](#configuration)
 - [Deploy the pipeline: function, trigger & manifest](#deploy-the-pipeline-function-trigger--manifest)
 - [Test locally](#test-locally)
+- [Troubleshooting](#troubleshooting)
 - [Ship a new release of the code](#ship-a-new-release-of-the-code)
 - [Manual Docker push (without `--push`)](#manual-docker-push-without---push)
 - [Uploading photos to the bucket](#uploading-photos-to-the-bucket)
@@ -228,6 +229,32 @@ docker ps --filter "publish=9373"
 ```
 
 If either command shows something, pick a different port.
+
+## Troubleshooting
+
+**Catch syntax errors before even building.** No need to wait for a full `vastde functions build` to find out you have a typo — a plain Python syntax check is instant:
+
+```bash
+python -m py_compile main.py
+python -m py_compile geolocation.py
+```
+
+This only catches syntax errors (not logic bugs or missing imports at runtime), but it's a fast first check before spending time on a build.
+
+**Inspect a running local container.** While `vastde functions localrun` is up, you can shell into the container to poke around — check that files landed where expected, that dependencies installed correctly, or manually run a snippet of Python:
+
+```bash
+docker ps                      # find the container ID/name for the running function
+docker exec -it <containerID> /bin/sh   # or /bin/bash if the image has it
+```
+
+**Check which environment variables actually reached the container.** Useful when the function behaves as if a variable from `config.yaml`/`config_localrun.yaml` wasn't picked up:
+
+```bash
+docker inspect <containerID> --format '{{json .Config.Env}}' | jq
+```
+
+This prints every environment variable the container was started with — handy to confirm `S3_ENDPOINT_URL`, `VASTDB_ENDPOINT`, etc. (and, for a real deployment, that the `/secrets`-mounted credentials are where `read_secret()` expects them) actually made it in, rather than guessing from the logs.
 
 ## Ship a new release of the code
 
