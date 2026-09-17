@@ -1,6 +1,6 @@
 # Vast DataEngine - Geolocation Example
 
-A [VAST DataEngine](https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine) serverless function triggered when a photo is uploaded to an S3 bucket. It extracts the image's EXIF data (date, camera, dimensions, GPS coordinates), performs reverse geocoding (city, region, country, continent), and stores the result in a [VastDB](https://vastdata.com/vastdb) table.
+A [VAST DataEngine](https://kb.vastdata.com/documentation/docs/vast-dataengine-55) serverless function triggered when a photo is uploaded to an S3 bucket. It extracts the image's EXIF data (date, camera, dimensions, GPS coordinates), performs reverse geocoding (city, region, country, continent), and stores the result in a [VastDB](https://vastdata.com/vastdb) table.
 
 > Educational example: it shows how to structure, build, deploy and evolve a VAST DataEngine function with the `vastde` CLI.
 
@@ -286,6 +286,6 @@ The function inserts one row per photo into the VastDB table (`VASTDB_BUCKET` / 
 - VAST DataEngine CLI (`vastde`): https://github.com/vast-data/dataengine-cli
 - CLI releases / binaries: https://github.com/vast-data/dataengine-cli/releases
 - Full command reference: https://github.com/vast-data/dataengine-cli/blob/main/docs/references/commands/vastde.md
-- VAST DataEngine documentation (VAST support portal): https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine
+- VAST DataEngine documentation (VAST knowledge base): https://kb.vastdata.com/documentation/docs/vast-dataengine-55
 
 See also [`MAINTENANCE.md`](MAINTENANCE.md) for this repository's security/release checklist.
