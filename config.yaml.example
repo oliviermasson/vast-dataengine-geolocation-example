@@ -1,6 +1,5 @@
-envs:
-  S3_ENDPOINT_URL: "https://xxxxxxxxx.example.com"
-  VASTDB_ENDPOINT: "http://X.X.X.X"
-  VASTDB_BUCKET: "omgeolocdb"
-  VASTDB_SCHEMA: "geoloc"
-  VASTDB_TABLE: "geoloc"
+S3_ENDPOINT_URL: "https://xxxxxxxxx.example.com"
+VASTDB_ENDPOINT: "http://X.X.X.X"
+VASTDB_BUCKET: "omgeolocdb"
+VASTDB_SCHEMA: "geoloc"
+VASTDB_TABLE: "geoloc"
