@@ -1,38 +1,38 @@
-# Maintenance du dépôt
+# Repository maintenance
 
-Checklist courte pour toute personne (ou tout agent Claude Code) qui intervient sur ce dépôt.
+Short checklist for anyone (human or Claude Code agent) working on this repository.
 
-## Avant chaque commit / push
+## Before every commit / push
 
-- [ ] `git status` : vérifier qu'aucun des fichiers suivants n'est suivi/ajouté : `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml` (ils sont dans `.gitignore`, mais un `git add -f` accidentel reste possible).
-- [ ] Ne jamais coller une IP interne, un hostname interne ou une access/secret key en dur dans `main.py`, `geolocation.py`, `README.md` ou tout autre fichier versionné. Si un exemple est nécessaire, utiliser `X.X.X.X` pour une IP et `xxxxxxxxx` pour une clé (voir les fichiers `*.example`).
-- [ ] Si un des fichiers `*.example` doit changer de forme (nouvelle variable d'env par ex.), répercuter le changement dans le fichier réel correspondant ET dans le `README.md`.
+- [ ] `git status`: make sure none of these files is tracked/staged: `config.yaml`, `config_localrun.yaml`, `omgeoloc-secrets.yaml` (they're in `.gitignore`, but an accidental `git add -f` is still possible).
+- [ ] Never paste an internal IP, an internal hostname, or an access/secret key directly into `main.py`, `geolocation.py`, `README.md`, or any other tracked file. If an example is needed, use `X.X.X.X` for an IP and `xxxxxxxxx` for a key (see the `*.example` files).
+- [ ] If one of the `*.example` files needs to change shape (e.g. a new env var), mirror the change in the corresponding real file AND in `README.md`.
 
-## Processus de release d'une nouvelle version de la fonction
+## Releasing a new version of the function
 
-Voir la section ["Publier une nouvelle release du code"](README.md#publier-une-nouvelle-release-du-code) du README. Résumé :
+See the ["Ship a new release of the code"](README.md#ship-a-new-release-of-the-code) section of the README. Summary:
 
-1. Modifier `main.py` / `geolocation.py`.
-2. Incrémenter la variable `version` dans `main.py`.
-3. `vastde functions build . --handlers main.py --image-tag vX.Y --push` (ou build+push manuel Docker si `--push` indisponible, voir README).
+1. Edit `main.py` / `geolocation.py`.
+2. Bump the `version` variable in `main.py`.
+3. `vastde functions build . --handlers main.py --image-tag vX.Y --push` (or manual Docker build+push if `--push` is unavailable, see README).
 4. `vastde functions update omgeoloc --image-tag vX.Y --publish`.
-5. Commit + tag Git (`git tag vX.Y`) + push.
+5. Git commit + tag (`git tag vX.Y`) + push.
 
-## Rotation des secrets
+## Secret rotation
 
-Les credentials présents dans les anciens fichiers `config_localrun.yaml` et `omgeoloc-secrets.yaml` (avant leur retrait du suivi Git) doivent être considérés comme potentiellement exposés s'ils ont un jour été poussés sur un dépôt, même privé. En cas de doute, régénérer :
+The credentials that were present in the old `config_localrun.yaml` and `omgeoloc-secrets.yaml` files (before they were removed from Git tracking) should be treated as potentially exposed if they were ever pushed to any repository, even a private one. If in doubt, regenerate:
 
-- l'access/secret key AWS S3 côté VAST,
-- l'access/secret key VastDB côté VAST,
+- the AWS S3 access/secret key on the VAST side,
+- the VastDB access/secret key on the VAST side,
 
-puis mettre à jour uniquement les copies locales non versionnées (`config_localrun.yaml`, `omgeoloc-secrets.yaml`) et le secret déployé côté VAST DataEngine.
+then update only the local, untracked copies (`config_localrun.yaml`, `omgeoloc-secrets.yaml`) and the secret deployed on VAST DataEngine.
 
-## Fichiers à ne jamais committer
+## Files that must never be committed
 
-| Fichier | Contient |
+| File | Contains |
 |---|---|
-| `config.yaml` | Endpoint S3, endpoint VastDB (infra interne) |
-| `config_localrun.yaml` | Endpoints + access/secret keys AWS & VastDB en clair |
-| `omgeoloc-secrets.yaml` | Access/secret keys AWS & VastDB en clair |
+| `config.yaml` | S3 endpoint, VastDB endpoint (internal infra) |
+| `config_localrun.yaml` | Endpoints + AWS & VastDB access/secret keys in plain text |
+| `omgeoloc-secrets.yaml` | AWS & VastDB access/secret keys in plain text |
 
-Ces trois fichiers ont leur pendant `*.example` versionné, qui sert de documentation/template.
+Each of these three files has a tracked `*.example` counterpart that serves as documentation/template.

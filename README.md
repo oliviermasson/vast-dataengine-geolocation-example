@@ -1,77 +1,77 @@
 # Vast DataEngine - Geolocation Example
 
-Fonction serverless [VAST DataEngine](https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine) déclenchée par le dépôt d'une photo dans un bucket S3. Elle extrait les données EXIF de l'image (date, appareil, dimensions, coordonnées GPS), effectue une géolocalisation inverse (ville, région, pays, continent) puis enregistre le tout dans une table [VastDB](https://vastdata.com/vastdb).
+A [VAST DataEngine](https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine) serverless function triggered when a photo is uploaded to an S3 bucket. It extracts the image's EXIF data (date, camera, dimensions, GPS coordinates), performs reverse geocoding (city, region, country, continent), and stores the result in a [VastDB](https://vastdata.com/vastdb) table.
 
-> Exemple pédagogique : il illustre comment structurer, builder, déployer et faire évoluer une fonction VAST DataEngine avec le CLI `vastde`.
+> Educational example: it shows how to structure, build, deploy and evolve a VAST DataEngine function with the `vastde` CLI.
 
-## Sommaire
+## Table of contents
 
-- [Comment ça marche](#comment-ça-marche)
-- [Contenu du dépôt](#contenu-du-dépôt)
-- [⚠️ Sécurité / secrets](#️-sécurité--secrets)
-- [Prérequis](#prérequis)
-- [Récupérer le projet](#récupérer-le-projet)
+- [How it works](#how-it-works)
+- [Repository contents](#repository-contents)
+- [⚠️ Security / secrets](#️-security--secrets)
+- [Prerequisites](#prerequisites)
+- [Get the project](#get-the-project)
 - [Configuration](#configuration)
-- [Créer la fonction sur VAST DataEngine](#créer-la-fonction-sur-vast-dataengine)
-- [Déclencher la fonction (trigger S3)](#déclencher-la-fonction-trigger-s3)
-- [Tester en local](#tester-en-local)
-- [Publier une nouvelle release du code](#publier-une-nouvelle-release-du-code)
-- [Push manuel de l'image Docker (sans `--push`)](#push-manuel-de-limage-docker-sans---push)
-- [Uploader des photos dans le bucket](#uploader-des-photos-dans-le-bucket)
-- [Schéma de la table VastDB](#schéma-de-la-table-vastdb)
-- [Documentation officielle](#documentation-officielle)
+- [Create the function on VAST DataEngine](#create-the-function-on-vast-dataengine)
+- [Trigger the function (S3 trigger)](#trigger-the-function-s3-trigger)
+- [Test locally](#test-locally)
+- [Ship a new release of the code](#ship-a-new-release-of-the-code)
+- [Manual Docker push (without `--push`)](#manual-docker-push-without---push)
+- [Uploading photos to the bucket](#uploading-photos-to-the-bucket)
+- [VastDB table schema](#vastdb-table-schema)
+- [Official documentation](#official-documentation)
 
-## Comment ça marche
+## How it works
 
 ```
-Upload photo (S3 bucket)
+Photo upload (S3 bucket)
         │
-        ▼  (trigger "element" sur ObjectCreated:*)
-Fonction VAST DataEngine (main.py)
+        ▼  ("element" trigger on ObjectCreated:*)
+VAST DataEngine function (main.py)
         │
-        ├─ lit l'image depuis S3 (boto3)
-        ├─ extrait les tags EXIF (exifread)
-        ├─ géolocalisation inverse des coord. GPS (geolocation.py, reverse_geocode)
-        └─ insère une ligne dans VastDB (vastdb / pyarrow)
+        ├─ reads the image from S3 (boto3)
+        ├─ extracts EXIF tags (exifread)
+        ├─ reverse-geocodes the GPS coordinates (geolocation.py, reverse_geocode)
+        └─ inserts a row into VastDB (vastdb / pyarrow)
 ```
 
-`geolocation.py` contient la logique de reverse-geocoding pure (aucune dépendance à VAST DataEngine) : distance de Haversine, résolution ville/pays/continent à partir de coordonnées GPS, avec des seuils de distance pour éviter de renvoyer une ville ou un pays absurde quand la photo a été prise en pleine mer ou dans une zone polaire.
+`geolocation.py` holds the pure reverse-geocoding logic (no dependency on VAST DataEngine): Haversine distance, city/country/continent resolution from GPS coordinates, with distance thresholds to avoid returning a nonsensical city or country when the photo was taken over open sea or in a polar region.
 
-`main.py` est le handler de la fonction : lecture de l'événement S3, extraction EXIF, appel à `geolocation.py`, puis écriture du résultat dans VastDB (déduplication sur `source_photo`).
+`main.py` is the function handler: it reads the S3 event, extracts EXIF data, calls into `geolocation.py`, then writes the result to VastDB (deduplicated on `source_photo`).
 
-## Contenu du dépôt
+## Repository contents
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `main.py` | Handler de la fonction (`init` + `handler`) |
-| `geolocation.py` | Reverse geocoding GPS → ville/région/pays/continent |
-| `project.toml` | Configuration buildpack (schema-version, variables de build) |
-| `requirements.txt` | Dépendances Python |
-| `constraints.txt` | Contraintes de versions pour pip (opentelemetry) |
-| `Aptfile` | Paquets apt additionnels (vide ici) |
-| `customDeps` | Modules Python custom additionnels (vide ici) |
-| `config.yaml.example` | Modèle des variables d'environnement non secrètes de la fonction déployée |
-| `config_localrun.yaml.example` | Modèle du fichier utilisé par `vastde functions localrun -c ...` |
-| `omgeoloc-secrets.yaml.example` | Modèle du bundle de secrets (credentials AWS/VastDB) monté sous `/secrets` |
+| `main.py` | Function handler (`init` + `handler`) |
+| `geolocation.py` | Reverse geocoding: GPS → city/region/country/continent |
+| `project.toml` | Buildpack configuration (schema-version, build variables) |
+| `requirements.txt` | Python dependencies |
+| `constraints.txt` | Pip version constraints (opentelemetry) |
+| `Aptfile` | Additional apt packages (empty here) |
+| `customDeps` | Additional custom Python modules (empty here) |
+| `config.yaml.example` | Template for the deployed function's non-secret environment variables |
+| `config_localrun.yaml.example` | Template for the file used by `vastde functions localrun -c ...` |
+| `omgeoloc-secrets.yaml.example` | Template for the secrets bundle (AWS/VastDB credentials) mounted under `/secrets` |
 
-Les trois fichiers `*.example` doivent être copiés **sans le suffixe `.example`** et remplis avec vos propres valeurs (voir [Configuration](#configuration)). Les copies remplies ne doivent jamais être committées — elles sont dans `.gitignore`.
+The three `*.example` files must be copied **without the `.example` suffix** and filled in with your own values (see [Configuration](#configuration)). The filled-in copies must never be committed — they're listed in `.gitignore`.
 
-## ⚠️ Sécurité / secrets
+## ⚠️ Security / secrets
 
-Le code Python (`main.py`, `geolocation.py`) ne contient **aucun secret en dur** : les identifiants AWS/VastDB sont lus depuis des fichiers montés sous `/secrets` ou, à défaut, depuis les variables d'environnement (fonction `read_secret`), et les endpoints viennent aussi de variables d'environnement. C'est cette raison qui permet de garder ces deux fichiers publics tels quels.
+The Python code (`main.py`, `geolocation.py`) contains **no hardcoded secrets**: AWS/VastDB credentials are read from files mounted under `/secrets`, or, failing that, from environment variables (the `read_secret` function), and endpoints also come from environment variables. That's why these two files can safely stay public as-is.
 
-En revanche, les fichiers `config.yaml`, `config_localrun.yaml` et `omgeoloc-secrets.yaml` d'origine contenaient des **valeurs réelles** (access key / secret key AWS et VastDB, IP interne, hostname interne). Ils ont été retirés du dépôt public et remplacés par des versions `*.example` avec des valeurs bidons (`X.X.X.X`, `xxxxxxxxx`). Si vous retrouvez ces fichiers en local, ne les committez jamais (ils sont listés dans `.gitignore`).
+However, the original `config.yaml`, `config_localrun.yaml` and `omgeoloc-secrets.yaml` files contained **real values** (AWS and VastDB access/secret keys, an internal IP, an internal hostname). They have been removed from the public repository and replaced with `*.example` versions using dummy values (`X.X.X.X`, `xxxxxxxxx`). If you find these files locally, never commit them (they're listed in `.gitignore`).
 
-## Prérequis
+## Prerequisites
 
-Sur la machine qui va builder/déployer/tester cette fonction :
+On the machine that will build/deploy/test this function:
 
-- **VAST DataEngine CLI (`vastde`)** installé et **configuré** contre votre cluster VAST DataEngine (voir [installation](#documentation-officielle)).
-- **Docker** (utilisé par `vastde functions build`/`localrun` pour construire et exécuter l'image de la fonction).
-- Un accès à un bucket S3 (compatible S3, exposé par VAST) et à une base VastDB, avec les credentials associés.
-- Python 3.12 en local uniquement si vous voulez exécuter/tester `geolocation.py` hors du conteneur (le build embarque déjà son propre runtime Python).
+- **VAST DataEngine CLI (`vastde`)** installed and **configured** against your VAST DataEngine cluster (see [installation](#official-documentation)).
+- **Docker** (used by `vastde functions build`/`localrun` to build and run the function's image).
+- Access to an S3 (S3-compatible, exposed by VAST) bucket and a VastDB database, with the associated credentials.
+- Python 3.12 locally, only if you want to run/test `geolocation.py` outside the container (the build already bundles its own Python runtime).
 
-## Récupérer le projet
+## Get the project
 
 ```bash
 git clone https://github.com/oliviermasson/vast-dataengine-geolocation-example.git
@@ -80,7 +80,7 @@ cd vast-dataengine-geolocation-example
 
 ## Configuration
 
-Copiez les modèles et remplissez-les avec vos propres valeurs :
+Copy the templates and fill them in with your own values:
 
 ```bash
 cp config.yaml.example config.yaml
@@ -88,90 +88,90 @@ cp config_localrun.yaml.example config_localrun.yaml
 cp omgeoloc-secrets.yaml.example omgeoloc-secrets.yaml
 ```
 
-- `config.yaml` : variables d'environnement de la fonction une fois déployée (endpoint S3, endpoint VastDB, nom du bucket/schema/table VastDB). Les credentials, eux, sont fournis via le secret décrit dans `omgeoloc-secrets.yaml` et montés sous `/secrets` par VAST DataEngine.
-- `omgeoloc-secrets.yaml` : définit le bundle de secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VASTDB_ACCESS_KEY`, `VASTDB_SECRET_KEY`) à créer côté VAST DataEngine et à associer à la fonction/au pipeline.
-- `config_localrun.yaml` : fichier "tout-en-un" (endpoints + credentials en clair) utilisé uniquement pour les tests locaux avec `vastde functions localrun -c config_localrun.yaml`, puisqu'il n'y a pas de montage `/secrets` en local.
+- `config.yaml`: environment variables for the deployed function (S3 endpoint, VastDB endpoint, VastDB bucket/schema/table name). Credentials themselves are provided through the secret described in `omgeoloc-secrets.yaml` and mounted under `/secrets` by VAST DataEngine.
+- `omgeoloc-secrets.yaml`: defines the secrets bundle (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VASTDB_ACCESS_KEY`, `VASTDB_SECRET_KEY`) to create on the VAST DataEngine side and attach to the function/pipeline.
+- `config_localrun.yaml`: an "all-in-one" file (endpoints + credentials in plain text) used only for local testing with `vastde functions localrun -c config_localrun.yaml`, since there's no `/secrets` mount locally.
 
-## Créer la fonction sur VAST DataEngine
+## Create the function on VAST DataEngine
 
-Ces commandes supposent que `vastde` est déjà installé (voir [Prérequis](#prérequis)) et pointe vers votre cluster :
+These commands assume `vastde` is already installed (see [Prerequisites](#prerequisites)) and pointed at your cluster:
 
 ```bash
-# Une seule fois par machine : configuration du CLI
+# Once per machine: configure the CLI
 vastde config init
-vastde config set --vms-url https://votre-cluster-vast.example.com
-vastde config set --username <votre_user> --password <votre_password> --tenant <votre_tenant>
+vastde config set --vms-url https://your-vast-cluster.example.com
+vastde config set --username <your_user> --password <your_password> --tenant <your_tenant>
 vastde config view
 ```
 
-Depuis la racine du projet :
+From the project root:
 
 ```bash
-# 1. Build de l'image de la fonction + push vers le registre configuré
+# 1. Build the function's image + push it to the configured registry
 vastde functions build . --handlers main.py --image-tag v1.19 --push
 
-# 2. Création de la fonction à partir de l'image poussée
+# 2. Create the function from the pushed image
 vastde functions create \
   --name omgeoloc \
-  --container-registry <nom-ou-vrn-de-votre-registre> \
-  --artifact-source <repo-image>/omgeoloc \
+  --container-registry <your-registry-name-or-vrn> \
+  --artifact-source <image-repo>/omgeoloc \
   --image-tag v1.19 \
   --publish
 ```
 
-- `<nom-ou-vrn-de-votre-registre>` : un registre déjà déclaré côté VAST DataEngine (`vastde container-registries list` pour lister, `vastde container-registries link` pour en ajouter un).
-- `--publish` rend cette révision immédiatement active.
-- Les variables d'environnement (`config.yaml`) et le secret (`omgeoloc-secrets.yaml`) doivent être attachés à la fonction/au pipeline associé — reportez-vous à `vastde functions --help` / `vastde pipelines --help` sur votre version du CLI pour la syntaxe exacte de rattachement, celle-ci pouvant varier selon la version.
+- `<your-registry-name-or-vrn>`: a registry already declared on the VAST DataEngine side (`vastde container-registries list` to list, `vastde container-registries link` to add one).
+- `--publish` makes this revision active immediately.
+- The environment variables (`config.yaml`) and the secret (`omgeoloc-secrets.yaml`) must be attached to the function/pipeline — check `vastde functions --help` / `vastde pipelines --help` on your CLI version for the exact attachment syntax, as it can vary by version.
 
-## Déclencher la fonction (trigger S3)
+## Trigger the function (S3 trigger)
 
-Pour que la fonction se déclenche automatiquement à chaque photo déposée dans le bucket :
+To have the function fire automatically every time a photo is dropped into the bucket:
 
 ```bash
 vastde triggers create element \
   --name omgeoloc-on-upload \
-  --source-bucket <nom-du-bucket-photos> \
+  --source-bucket <photos-bucket-name> \
   --event ObjectCreated:* \
   --name-suffix .jpg
 ```
 
-Reliez ensuite ce trigger à la fonction `omgeoloc` via un pipeline (`vastde pipelines create --config ... --deploy`, puis `vastde pipelines deploy <nom>`) — voir la doc officielle pour le format exact du fichier de configuration du pipeline sur votre version du CLI.
+Then wire this trigger to the `omgeoloc` function through a pipeline (`vastde pipelines create --config ... --deploy`, then `vastde pipelines deploy <name>`) — see the official docs for the exact pipeline config file format on your CLI version.
 
-## Tester en local
+## Test locally
 
 ```bash
-# Build local (sans push)
+# Local build (no push)
 vastde functions build . --handlers main.py --image-tag dev
 
-# Exécution locale du conteneur avec vos variables/secrets de test
+# Run the container locally with your test variables/secrets
 vastde functions localrun . --config config_localrun.yaml --image-tag dev --port 8080
 
-# Dans un autre terminal : envoyer un événement de test
+# In another terminal: send a test event
 vastde functions invoke --generate-event --url http://localhost:8080/
 ```
 
-## Publier une nouvelle release du code
+## Ship a new release of the code
 
-1. Modifiez `main.py` et/ou `geolocation.py`.
-2. Incrémentez la variable `version` en tête de `main.py` (ex. `v1.19` → `v1.20`) — elle est logguée à chaque init/handler, ce qui facilite le suivi en prod.
-3. Rebuild + push de l'image avec le nouveau tag :
+1. Edit `main.py` and/or `geolocation.py`.
+2. Bump the `version` variable at the top of `main.py` (e.g. `v1.19` → `v1.20`) — it's logged on every init/handler call, which makes tracking production versions easier.
+3. Rebuild and push the image with the new tag:
 
    ```bash
    vastde functions build . --handlers main.py --image-tag v1.20 --push
    ```
 
-4. Mettez à jour la fonction pour pointer vers la nouvelle image et publier la révision :
+4. Update the function to point at the new image and publish the revision:
 
    ```bash
    vastde functions update omgeoloc \
-     --container-registry <nom-ou-vrn-de-votre-registre> \
-     --artifact-source <repo-image>/omgeoloc \
+     --container-registry <your-registry-name-or-vrn> \
+     --artifact-source <image-repo>/omgeoloc \
      --image-tag v1.20 \
      --publish
    ```
 
-   Sans `--publish`, la commande crée une nouvelle révision sans la rendre active — utile pour un déploiement canary/manuel.
-5. Committez le code (jamais les fichiers `config*.yaml`/`omgeoloc-secrets.yaml` réels) et taguez la release côté Git :
+   Without `--publish`, the command creates a new revision without making it active — useful for a canary/manual rollout.
+5. Commit the code (never the real `config*.yaml`/`omgeoloc-secrets.yaml` files) and tag the release in Git:
 
    ```bash
    git add main.py geolocation.py
@@ -180,60 +180,60 @@ vastde functions invoke --generate-event --url http://localhost:8080/
    git push origin main --tags
    ```
 
-## Push manuel de l'image Docker (sans `--push`)
+## Manual Docker push (without `--push`)
 
-Si votre version de `vastde` ne propose pas encore l'option `--push` sur `functions build`, faites-le manuellement avec Docker :
+If your installed `vastde` version doesn't yet offer the `--push` option on `functions build`, do it manually with Docker:
 
 ```bash
-# 1. Build local uniquement (pas de --push)
+# 1. Local build only (no --push)
 vastde functions build . --handlers main.py --image-tag v1.20
 
-# 2. Repérez le nom/tag de l'image produite localement
+# 2. Find the name/tag of the locally built image
 docker images | grep omgeoloc
 
-# 3. Authentifiez-vous auprès du registre cible
-docker login <registre>.example.com
+# 3. Log in to the target registry
+docker login <registry>.example.com
 
-# 4. Re-taguez l'image vers le chemin du registre distant
-docker tag omgeoloc:v1.20 <registre>.example.com/<repo-image>/omgeoloc:v1.20
+# 4. Re-tag the image with the remote registry path
+docker tag omgeoloc:v1.20 <registry>.example.com/<image-repo>/omgeoloc:v1.20
 
-# 5. Poussez l'image
-docker push <registre>.example.com/<repo-image>/omgeoloc:v1.20
+# 5. Push the image
+docker push <registry>.example.com/<image-repo>/omgeoloc:v1.20
 
-# 6. Puis créez/mettez à jour la fonction comme d'habitude
+# 6. Then create/update the function as usual
 vastde functions update omgeoloc \
-  --container-registry <nom-ou-vrn-de-votre-registre> \
-  --artifact-source <repo-image>/omgeoloc \
+  --container-registry <your-registry-name-or-vrn> \
+  --artifact-source <image-repo>/omgeoloc \
   --image-tag v1.20 \
   --publish
 ```
 
-## Uploader des photos dans le bucket
+## Uploading photos to the bucket
 
-Remplacez `<endpoint>`, `<bucket>`, `<access-key>` et `<secret-key>` par vos propres valeurs (celles de votre `config.yaml`/`omgeoloc-secrets.yaml` réels, jamais celles des fichiers `.example`).
+Replace `<endpoint>`, `<bucket>`, `<access-key>` and `<secret-key>` with your own values (the ones from your real `config.yaml`/`omgeoloc-secrets.yaml`, never the ones from the `.example` files).
 
-### Avec `s3cmd`
+### With `s3cmd`
 
-`~/.s3cfg` (extrait) :
+`~/.s3cfg` (excerpt):
 
 ```ini
 [default]
 access_key = <access-key>
 secret_key = <secret-key>
-host_base = <endpoint>          # ex: s3.example.com (sans http(s)://)
+host_base = <endpoint>          # e.g. s3.example.com (without http(s)://)
 host_bucket = <endpoint>
-use_https = True                # False si l'endpoint est en http://
+use_https = True                # False if the endpoint is http://
 signature_v2 = False
 ```
 
-Upload :
+Upload:
 
 ```bash
 s3cmd put photo.jpg s3://<bucket>/incoming/photo.jpg
 s3cmd put ./photos/*.jpg s3://<bucket>/incoming/ --recursive
 ```
 
-### Avec `aws s3` (AWS CLI)
+### With `aws s3` (AWS CLI)
 
 ```bash
 export AWS_ACCESS_KEY_ID=<access-key>
@@ -243,38 +243,38 @@ aws s3 --endpoint-url <endpoint> cp photo.jpg s3://<bucket>/incoming/photo.jpg
 aws s3 --endpoint-url <endpoint> sync ./photos s3://<bucket>/incoming/
 ```
 
-Astuce : pour éviter de répéter `--endpoint-url`, vous pouvez déclarer un profil dédié dans `~/.aws/config` avec `endpoint_url = <endpoint>` (nécessite une version récente de l'AWS CLI).
+Tip: to avoid repeating `--endpoint-url`, you can declare a dedicated profile in `~/.aws/config` with `endpoint_url = <endpoint>` (requires a recent AWS CLI version).
 
-### Avec S3 Browser (client graphique Windows)
+### With S3 Browser (Windows GUI client)
 
 1. **Accounts → Add New Account**.
-2. Type de compte : *S3 Compatible Storage*.
-3. **REST Endpoint** : `<endpoint>` (décochez "Use secure transfer (SSL/TLS)" si l'endpoint est en `http://`).
-4. **Access Key ID** / **Secret Access Key** : vos identifiants.
-5. Une fois connecté, sélectionnez le bucket `<bucket>`, ouvrez/créez le dossier `incoming/`, puis glissez-déposez vos photos pour déclencher la fonction.
+2. Account type: *S3 Compatible Storage*.
+3. **REST Endpoint**: `<endpoint>` (uncheck "Use secure transfer (SSL/TLS)" if the endpoint is `http://`).
+4. **Access Key ID** / **Secret Access Key**: your credentials.
+5. Once connected, select the `<bucket>` bucket, open/create the `incoming/` folder, then drag & drop your photos to trigger the function.
 
-## Schéma de la table VastDB
+## VastDB table schema
 
-La fonction insère une ligne par photo dans la table VastDB (`VASTDB_BUCKET` / `VASTDB_SCHEMA` / `VASTDB_TABLE`), avec déduplication sur `source_photo` :
+The function inserts one row per photo into the VastDB table (`VASTDB_BUCKET` / `VASTDB_SCHEMA` / `VASTDB_TABLE`), deduplicated on `source_photo`:
 
-| Colonne | Type | Description |
+| Column | Type | Description |
 |---|---|---|
-| `source_photo` | string | URI S3 de la photo (`s3://bucket/key`), clé de dédoublonnage |
-| `maker` | string | Marque/modèle de l'appareil photo (EXIF `Make`/`Model`) |
-| `date_exif` | date32 | Date de prise de vue (EXIF `DateTimeOriginal`/`DateTime`) |
-| `width` / `height` | int32 | Dimensions de l'image |
-| `gps_lat` / `gps_lon` | float64 | Coordonnées GPS décimales |
-| `location` | string | Résumé lisible "Ville, État, Pays (Continent)" |
-| `city` | string | Ville la plus proche (si dans un rayon raisonnable) |
-| `region` | string | État/région |
-| `country` | string | Pays |
+| `source_photo` | string | S3 URI of the photo (`s3://bucket/key`), dedup key |
+| `maker` | string | Camera make/model (EXIF `Make`/`Model`) |
+| `date_exif` | date32 | Shot date (EXIF `DateTimeOriginal`/`DateTime`) |
+| `width` / `height` | int32 | Image dimensions |
+| `gps_lat` / `gps_lon` | float64 | Decimal GPS coordinates |
+| `location` | string | Human-readable "City, State, Country (Continent)" summary |
+| `city` | string | Nearest city (if within a reasonable radius) |
+| `region` | string | State/region |
+| `country` | string | Country |
 | `continent` | string | Continent |
 
-## Documentation officielle
+## Official documentation
 
-- CLI VAST DataEngine (`vastde`) : https://github.com/vast-data/dataengine-cli
-- Releases / binaires du CLI : https://github.com/vast-data/dataengine-cli/releases
-- Référence complète des commandes : https://github.com/vast-data/dataengine-cli/blob/main/docs/references/commands/vastde.md
-- Documentation VAST DataEngine (portail support VAST) : https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine
+- VAST DataEngine CLI (`vastde`): https://github.com/vast-data/dataengine-cli
+- CLI releases / binaries: https://github.com/vast-data/dataengine-cli/releases
+- Full command reference: https://github.com/vast-data/dataengine-cli/blob/main/docs/references/commands/vastde.md
+- VAST DataEngine documentation (VAST support portal): https://support.vastdata.com/s/topic/0TO5e000000cN2AGAU/vast-dataengine
 
-Voir aussi [`MAINTENANCE.md`](MAINTENANCE.md) pour la checklist de sécurité/release de ce dépôt.
+See also [`MAINTENANCE.md`](MAINTENANCE.md) for this repository's security/release checklist.

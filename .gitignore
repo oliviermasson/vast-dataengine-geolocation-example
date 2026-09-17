@@ -1,7 +1,7 @@
-# --- Fichiers contenant des identifiants / infrastructure réels ---
-# Ne JAMAIS committer ces fichiers : ils contiennent (ou peuvent contenir)
-# des access/secret keys AWS & VastDB ainsi que des endpoints internes.
-# Utilisez les fichiers *.example correspondants comme modèles.
+# --- Files containing real credentials / infrastructure details ---
+# NEVER commit these files: they contain (or may contain) real AWS &
+# VastDB access/secret keys as well as internal endpoints.
+# Use the matching *.example files as templates.
 config.yaml
 config_localrun.yaml
 omgeoloc-secrets.yaml
@@ -19,6 +19,6 @@ build.log
 *.tar
 *.tar.gz
 
-# --- Divers ---
+# --- Misc ---
 .DS_Store
 *.swp
