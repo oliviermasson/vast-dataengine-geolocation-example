@@ -288,7 +288,7 @@ This prints every environment variable the container was started with — handy 
 
 ## Manual Docker push (without `--push`)
 
-**First, double-check `--push` is really unavailable** — run `vastde version` and `vastde functions build --help` on the machine you build from. `--push` has been available since v5.5.0 of the CLI, so unless you're on an older release, you likely already have it and can skip this whole section.
+**First, double-check `--push` is really unavailable** — run `vastde version` and `vastde functions build --help` on the machine you build from. `--push` is present on some CLI builds but not others even within the v5.5.0 line (confirmed missing on a real `v5.5.0-2144029` builder, confirmed present again on `v5.5.0-sp2`), so don't assume it from the version number alone — check `--help` every time.
 
 Note that `vastde functions build` also touches Docker on its own even without `--push`: it uses [Zarf](https://zarf.dev/) internally to stage the image through a short-lived local registry (you may notice a `127.0.0.1:<port>` entry with a `zarf-push` user in `~/.docker/config.json` — that's this local staging step, not the real remote registry, and it's managed automatically). Don't reuse those credentials for anything else.
 

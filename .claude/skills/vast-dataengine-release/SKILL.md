@@ -30,7 +30,7 @@ If any of these files shows up as staged, unstage it before continuing. Never in
    ```bash
    vastde functions build . --handlers main.py --image-tag vX.Y --push
    ```
-   First verify with `vastde functions build --help` whether `--push` is really unavailable (it's been present since v5.5.0). If it's genuinely missing, build without `--push` and push manually with Docker instead (see README, "Manual Docker push" section) — get the real remote registry credentials via `vastde container-registries get <name>`, never reuse the local `127.0.0.1:<port>` `zarf-push` credentials that `vastde functions build` stages images through internally.
+   First verify with `vastde functions build --help` whether `--push` is actually available — it's inconsistent even across builds within the v5.5.0 line (confirmed missing on a real `v5.5.0-2144029` builder, confirmed present again on `v5.5.0-sp2`), so don't assume it from the version number alone. If it's genuinely missing, build without `--push` and push manually with Docker instead (see README, "Manual Docker push" section) — get the real remote registry credentials via `vastde container-registries get <name>`, never reuse the local `127.0.0.1:<port>` `zarf-push` credentials that `vastde functions build` stages images through internally.
 4. Publish the new function revision:
    ```bash
    vastde functions update omgeoloc \
